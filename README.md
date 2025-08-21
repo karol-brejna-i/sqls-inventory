@@ -1,23 +1,61 @@
-# AI‑Ready Project Starter
+# 📚 Institution Directory Specification
 
-Ten szablon pomaga zorganizować wymagania i kontekst projektu tak,
-aby modele AI mogły generować kod i testy na podstawie jednoznacznej specyfikacji.
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](./LICENSE)
+![Status](https://img.shields.io/badge/status-in%20progress-yellow)
+![Spec](https://img.shields.io/badge/type-specification-lightgrey)
 
-## Struktura
-- `spec/vision.md` — kontekst biznesowy i cele.
-- `spec/prd.md` — wymagania produktowe z kryteriami akceptacji.
-- `spec/system-requirements.md` — wymagania systemowe i niefunkcjonalne.
-- `spec/api.yaml` — specyfikacja API (OpenAPI 3.0).
-- `spec/data-model.yaml` — model danych (YAML + przykłady).
-- `spec/glossary.md` — słownik pojęć i nazewnictwo.
-- `spec/user-stories.md` — user stories i przypadki użycia.
-- `tests/acceptance.feature` — testy akceptacyjne (Gherkin).
-- `docs/architecture.md` — architektura logiczna/techniczna.
-- `docs/adr/0001-record-architecture-decisions.md` — decyzje architektoniczne.
-- `prompts/dev_prompt.md` — gotowy prompt do generowania kodu ze specyfikacji.
+This repository contains the **AI-ready specification and context** for a web application that manages and presents information about institutions (e.g., educational facilities, public organizations).  
+It is also an **experiment in specification-driven development with AI** — using structured specs as the source of truth to guide code generation, validation, and evolution.
 
-## Jak używać
-1) Uzupełnij pliki w katalogu `spec/` i `docs/`.
-2) Uruchamiaj modele AI z użyciem promptu z `prompts/dev_prompt.md`.
-3) Automatyzuj walidację: lint OpenAPI, testy Gherkin, schematy JSON.
+---
 
+## 🚀 Project Vision
+- A **web app** to browse institution information (address, contact, region).  
+- **Iteration 1 (priority):** sort, filter, and search through institution data.  
+- **Iteration 2:** manual edits of selected fields with **audit trail**.  
+- **External modules** can update specific fields (e.g., emails) with provenance metadata.  
+- **Future:** authentication, role-based access, rate limits, and integrations.
+
+---
+
+## 📂 Repository Structure
+```
+.cogitron/       # Specifications & AI context (vision, PRD, data model, API, system reqs)
+  vision.md
+  prd.md
+  system-requirements.md
+  api.yaml
+  data-model.yaml
+  glossary.md
+  user-stories.md
+  README.md       # Explains .cogitron structure
+  prompts/        # Bootstrap & continuation prompts for AI
+  adr/            # Architecture Decision Records
+docs/            # Architecture docs, diagrams, explanations
+tests/           # Acceptance tests in Gherkin
+```
+
+---
+
+## 🧩 How to Use
+
+- **For humans:**  
+  Read `.cogitron/` files to understand the scope, requirements, and design.  
+  Extend docs, add ADRs, evolve specs as the project grows.  
+
+- **For AI models:**  
+  Provide the [bootstrap prompt](.cogitron/prompts/bootstrap_prompt.md) to regenerate the project structure from scratch.  
+  Use the [continuation prompt](.cogitron/prompts/continuation_prompt.md) to refine individual files.  
+
+---
+
+## 🛠️ Status
+- Scope and specs under active development.  
+- Technology assumptions: Python/FastAPI backend, PostgreSQL DB, React frontend (to be confirmed in ADRs).  
+- Current focus: defining data model, API, and non-functional requirements.  
+- Experimental goal: validate a workflow where **AI consumes and evolves specifications** rather than raw code.
+
+---
+
+## 📜 License
+This project is licensed under the [Apache License 2.0](./LICENSE).
