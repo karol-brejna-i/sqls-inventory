@@ -1,0 +1,357 @@
+openapi: 3.0.3
+info:
+  title: School Directory API
+  version: 0.3.0
+  description: |
+    Read-first API for browsing school data. Iteration 2 adds limited write for contact info
+    with validation and audit history. This version reflects **Option B** (normalized contact
+    fields with per-field provenance and flexible metadata).
+servers:
+  - url: https://api.example.com
+    description: Production (placeholder)
+
+tags:
+  - name: Schools
+    description: Browse and retrieve school records
+  - name: Contact (Future Write)
+    description: Limited update of contact info with validation and audit (Iteration 2)
+
+paths:
+  /schools:
+    get:
+      tags: [Schools]
+      summary: List schools with filtering, search, and sorting
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 200 }
+          description: Full-text search across name, address and emails (case-insensitive)
+        - in: query
+          name: voivodeship
+          schema: { type: string }
+          description: Filter by voivodeship name or code
+        - in: query
+          name: municipality
+          schema: { type: string }
+          description: Filter by municipality (gmina) name or code
+        - in: query
+          name: locality
+          schema: { type: string }
+          description: Filter by locality/town name
+        - in: query
+          name: has_email
+          schema: { type: boolean }
+          description: Only records that have at least one email
+        - in: query
+          name: has_phone
+          schema: { type: boolean }
+          description: Only records that have at least one phone
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum: [name, locality, municipality, voivodeship, email_present, phone_present]
+          description: Sort field; default name
+        - in: query
+          name: order
+          schema: { type: string, enum: [asc, desc], default: asc }
+          description: Sort order
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+          description: Page number (1-based) if pagination is used
+        - in: query
+          name: page_size
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+          description: Items per page
+      responses:
+        "200":
+          description: Paged list of schools
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedSchools"
+        "400":
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /schools/{id}:
+    get:
+      tags: [Schools]
+      summary: Get details for a single school
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: School record
+          headers:
+            ETag:
+              description: Version identifier for optimistic concurrency (used with future PATCH)
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/School" }
+        "404":
+          description: School not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  # ---- Future write (Iteration 2) ----
+  /schools/{id}/contact:
+    patch:
+      tags: ["Contact (Future Write)"]
+      summary: "(Future) Update contact info for a school with validation and audit"
+      description: |
+        Allows trusted external modules to update selected contact fields.
+        **Fields:** secretariat_email, parents_council_email, phone, website.
+        For each field you can provide a `value` and arbitrary `meta` (a free-form object that can include url, phrase, scraped_at, confidence, etc.).
+        **Validation** for email/phone formats is enforced. **Audit history** is recorded per field with old/new value, source=external|manual|import,
+        timestamp, and meta snapshot.
+        
+        Behavior:
+        - Omitted fields are unchanged.
+        - A field present with `value: null` clears the value and still records audit and meta.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, maxLength: 128 }
+          description: Unique key per logical update to ensure idempotency
+        - in: header
+          name: If-Match
+          required: false
+          schema: { type: string }
+          description: ETag of the current resource version for optimistic concurrency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ContactUpdate" }
+      responses:
+        "200":
+          description: Contact info updated; returns current school state with updated ETag
+          headers:
+            ETag:
+              description: New version identifier
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/School" }
+        "202":
+          description: Update accepted for asynchronous processing (optional future behavior)
+        "400":
+          description: Bad request (malformed input)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Authentication required or invalid API key
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Insufficient permissions for this operation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: School not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Version conflict (If-Match mismatch)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: Validation errors (invalid email/phone format, etc.)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationError" }
+      x-status: future
+      x-notes:
+        - "Scope limited to contact fields listed above."
+        - "Record audit trail: field, old_value, new_value, timestamp, source, client_id (from API key), actor if available, and meta JSON snapshot."
+        - "Enforce rate limits, e.g., 60 write ops/min per client."
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    PaginatedSchools:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/School" }
+        page:
+          type: integer
+          minimum: 1
+          example: 1
+        page_size:
+          type: integer
+          example: 50
+        total_items:
+          type: integer
+          example: 12345
+        total_pages:
+          type: integer
+          example: 247
+
+    School:
+      type: object
+      required: [id, name, region, created_at]
+      properties:
+        id: { type: string, example: "sch_01HXYZ..." }
+        name: { type: string, example: "Primary School No. 5" }
+        address:
+          $ref: "#/components/schemas/Address"
+        contact:
+          $ref: "#/components/schemas/ContactInfo"
+        region:
+          $ref: "#/components/schemas/Region"
+        website: { type: string, format: uri, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time, nullable: true }
+        provenance:
+          type: object
+          properties:
+            contact:
+              $ref: "#/components/schemas/ContactProvenance"
+          description: Per-field provenance for key contact attributes
+
+    Address:
+      type: object
+      properties:
+        street: { type: string, nullable: true }
+        postal_code: { type: string, nullable: true }
+        locality: { type: string, description: "Locality/Town", nullable: true }
+        municipality: { type: string, description: "Municipality (gmina)", nullable: true }
+        voivodeship: { type: string, nullable: true }
+
+    ContactInfo:
+      type: object
+      properties:
+        secretariat_email:
+          type: string
+          format: email
+          nullable: true
+        parents_council_email:
+          type: string
+          format: email
+          nullable: true
+        emails:
+          type: array
+          description: Optional derived or supplemental addresses
+          items: { type: string, format: email }
+        phone:
+          type: string
+          nullable: true
+        website:
+          type: string
+          format: uri
+          nullable: true
+
+    # Per-field provenance shapes
+    FieldProvenance:
+      type: object
+      properties:
+        source:
+          type: string
+          enum: [import, manual, external]
+        updated_at:
+          type: string
+          format: date-time
+        meta:
+          type: object
+          additionalProperties: true
+          description: Arbitrary metadata (e.g., url, phrase, scraped_at, confidence)
+        actor_id:
+          type: string
+          nullable: true
+        client_id:
+          type: string
+          nullable: true
+
+    ContactProvenance:
+      type: object
+      properties:
+        secretariat_email:
+          $ref: "#/components/schemas/FieldProvenance"
+        parents_council_email:
+          $ref: "#/components/schemas/FieldProvenance"
+        phone:
+          $ref: "#/components/schemas/FieldProvenance"
+        website:
+          $ref: "#/components/schemas/FieldProvenance"
+
+    # PATCH request with { field: { value, meta } } structure
+    ContactUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        secretariat_email:
+          $ref: "#/components/schemas/UpdatableField"
+        parents_council_email:
+          $ref: "#/components/schemas/UpdatableField"
+        phone:
+          $ref: "#/components/schemas/UpdatableField"
+        website:
+          $ref: "#/components/schemas/UpdatableField"
+      description: Allowed fields for contact updates by external or manual modules
+
+    UpdatableField:
+      type: object
+      additionalProperties: false
+      properties:
+        value:
+          nullable: true
+        meta:
+          type: object
+          additionalProperties: true
+          description: Free-form metadata captured in provenance and history
+
+    Region:
+      type: object
+      required: [voivodeship]
+      properties:
+        voivodeship: { type: string, example: "Mazowieckie" }
+        municipality: { type: string, nullable: true }
+        locality: { type: string, nullable: true }
+
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+        code: { type: string, nullable: true }
+
+    ValidationError:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          properties:
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  issue: { type: string }

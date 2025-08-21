@@ -1,0 +1,133 @@
+# Data Model (Option B — normalized contact with per-field provenance)
+
+entities:
+  - name: School
+    fields:
+      - { name: id, type: uuid, required: true }
+      - { name: name, type: string, required: true }
+      - { name: voivodeship, type: string, required: false }
+      - { name: municipality, type: string, required: false }
+      - { name: locality, type: string, required: false }
+      - { name: street, type: string, required: false }
+      - { name: postal_code, type: string, required: false }
+      - { name: created_at, type: timestamp, required: true }
+      - { name: updated_at, type: timestamp, required: false }
+
+  - name: SchoolContact
+    description: Current contact info per school with per-field provenance
+    fields:
+      - { name: school_id, type: uuid, required: true, ref: School.id }
+      - { name: secretariat_email, type: email, required: false }
+      - { name: secretariat_email_source, type: enum(import,manual,external), required: false, default: import }
+      - { name: secretariat_email_meta, type: json, required: false, description: "Arbitrary metadata (url, phrase, scraped_at, confidence, etc.)" }
+      - { name: secretariat_email_updated_at, type: timestamp, required: false }
+
+      - { name: parents_council_email, type: email, required: false }
+      - { name: parents_council_email_source, type: enum(import,manual,external), required: false, default: import }
+      - { name: parents_council_email_meta, type: json, required: false }
+      - { name: parents_council_email_updated_at, type: timestamp, required: false }
+
+      - { name: phone, type: string, required: false }
+      - { name: phone_source, type: enum(import,manual,external), required: false }
+      - { name: phone_meta, type: json, required: false }
+      - { name: phone_updated_at, type: timestamp, required: false }
+
+      - { name: website, type: uri, required: false }
+      - { name: website_source, type: enum(import,manual,external), required: false }
+      - { name: website_meta, type: json, required: false }
+      - { name: website_updated_at, type: timestamp, required: false }
+
+      - { name: emails, type: email[], required: false, description: "Optional supplemental list; derived or manually curated" }
+
+  - name: ChangeRecord
+    description: Append-only audit trail for field-level changes
+    fields:
+      - { name: id, type: uuid, required: true }
+      - { name: school_id, type: uuid, required: true, ref: School.id }
+      - { name: field, type: string, required: true, example: "contact.secretariat_email" }
+      - { name: old_value, type: json, required: false }
+      - { name: new_value, type: json, required: false }
+      - { name: source, type: enum(import,manual,external), required: true }
+      - { name: meta, type: json, required: false, description: "Snapshot of metadata supplied by the writer" }
+      - { name: actor_id, type: string, required: false }
+      - { name: client_id, type: string, required: false }
+      - { name: timestamp, type: timestamp, required: true }
+      - { name: idempotency_key, type: string, required: false, unique: true }
+
+indexes:
+  - table: School
+    columns: [voivodeship, municipality, locality]
+    type: btree
+  - table: School
+    columns: [name]
+    type: gin_trgm
+  - table: SchoolContact
+    columns: [lower(secretariat_email)]
+    type: btree
+  - table: SchoolContact
+    columns: [lower(parents_council_email)]
+    type: btree
+  - table: SchoolContact
+    columns: [emails]
+    type: gin
+  - table: SchoolContact
+    columns: [secretariat_email_meta]
+    type: gin_jsonb
+  - table: ChangeRecord
+    columns: [school_id, timestamp]
+    type: btree
+  - table: ChangeRecord
+    columns: [idempotency_key]
+    type: btree_unique
+
+validation:
+  - emails_must_be_valid_rfc5322: true
+  - phone_format_prefer_e164: true
+  - website_uri_http_https_only: true
+  - region_values_canonical_sets: true
+
+examples:
+  school_minimal:
+    id: "00000000-0000-0000-0000-000000000000"
+    name: "Primary School No. 5"
+    voivodeship: "Mazowieckie"
+    municipality: "Warszawa"
+    locality: "Warszawa"
+    created_at: "2025-08-21T09:00:00Z"
+
+  school_contact_current:
+    school_id: "00000000-0000-0000-0000-000000000000"
+    secretariat_email: "sekretariat@school.edu"
+    secretariat_email_source: "external"
+    secretariat_email_meta:
+      url: "https://school.edu/contact"
+      phrase: "sekretariat"
+      scraped_at: "2025-08-21T07:35:00Z"
+      confidence: 0.92
+    secretariat_email_updated_at: "2025-08-21T07:36:12Z"
+    parents_council_email: "parents.council@school.edu"
+    parents_council_email_source: "manual"
+    parents_council_email_meta:
+      note: "Provided by school admin by phone"
+    parents_council_email_updated_at: "2025-08-15T10:05:00Z"
+    phone: "+48 123 456 789"
+    website: "https://school.edu"
+    emails:
+      - "sekretariat@school.edu"
+
+  change_record_example:
+    id: "11111111-1111-1111-1111-111111111111"
+    school_id: "00000000-0000-0000-0000-000000000000"
+    field: "contact.secretariat_email"
+    old_value: "old@school.edu"
+    new_value: "sekretariat@school.edu"
+    source: "external"
+    meta:
+      url: "https://school.edu/contact"
+      phrase: "sekretariat"
+      scraped_at: "2025-08-21T07:35:00Z"
+      confidence: 0.92
+    client_id: "scraper-mailfinder"
+    actor_id: null
+    timestamp: "2025-08-21T07:36:12Z"
+    idempotency_key: "abc-123"
