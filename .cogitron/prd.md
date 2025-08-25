@@ -4,13 +4,13 @@
 
 ### E1 — School data browsing (Iteration 1, Priority)
 - **F1: List view of schools**
-  - Columns include: Name, Address (street, postal code), Locality/Town, Municipality (gmina), Voivodeship, Phone, Email(s), Website (optional).
+  - Columns include: Name, Address (street, postal code), City, Region, Voivodeship, Phone, Parent Council Email, Website, Facebook (optional).
   - Pagination or incremental loading.
 - **F2: Sorting**
-  - Sort by: Name, Locality/Town, Municipality, Voivodeship, Email (presence), Phone (presence).
+  - Sort by: Name, City, Region, Voivodeship, Email (presence), Phone (presence).
   - Stable sort; default sort by Name (A→Z).
 - **F3: Filtering**
-  - By Voivodeship → Municipality → Locality/Town (hierarchical narrowing).
+  - By Voivodeship → Region → City (hierarchical narrowing).
   - By presence of email/phone.
 - **F4: Full‑text search**
   - Search by school name, part of address, email domain (case‑insensitive, diacritic‑insensitive if feasible).
@@ -20,7 +20,7 @@
 
 ### E2 — Manual editing with change history (Iteration 2)
 - **F6: Edit selected fields by hand**
-  - Editable fields: contact info (email(s), phone), website, address corrections.
+  - Editable fields: contact info (pc_email, phone), website, school_url, facebook_url, address corrections.
   - Validation rules for email, phone formats.
 - **F7: Change history (audit) for key attributes**
   - For each changed field store: field name, old value, new value, timestamp, source (manual/import), and actor (if authenticated).
@@ -45,9 +45,9 @@
 Feature: Browse schools
   Scenario: Filter by region and sort by name
     Given the dataset contains schools across multiple voivodeships
-    And I select Voivodeship "Mazowieckie"
-    And I select Municipality "Warszawa"
-    And I select Locality "Warszawa"
+    And I select Voivodeship "łódzkie"
+    And I select Region "wieruszowski"
+    And I select City "Bolesławiec"
     When I sort by "Name" ascending
     Then the list shows only schools within the selected region hierarchy
     And results are ordered alphabetically by Name (A to Z)

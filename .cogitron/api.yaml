@@ -31,13 +31,13 @@ paths:
           schema: { type: string }
           description: Filter by voivodeship name or code
         - in: query
-          name: municipality
+          name: region
           schema: { type: string }
-          description: Filter by municipality (gmina) name or code
+          description: Filter by region within voivodeship
         - in: query
-          name: locality
+          name: city
           schema: { type: string }
-          description: Filter by locality/town name
+          description: Filter by city name
         - in: query
           name: has_email
           schema: { type: boolean }
@@ -50,7 +50,7 @@ paths:
           name: sort
           schema:
             type: string
-            enum: [name, locality, municipality, voivodeship, email_present, phone_present]
+            enum: [name, city, region, voivodeship, email_present, phone_present]
           description: Sort field; default name
         - in: query
           name: order
@@ -217,25 +217,25 @@ components:
 
     School:
       type: object
-      required: [id, name, region, created_at]
+      required: [id, name, voivodeship, region, city, created_at]
       properties:
         id: { type: string, example: "sch_01HXYZ..." }
-        name: { type: string, example: "Primary School No. 5" }
-        address:
-          $ref: "#/components/schemas/Address"
-        contact:
-          $ref: "#/components/schemas/ContactInfo"
-        region:
-          $ref: "#/components/schemas/Region"
-        website: { type: string, format: uri, nullable: true }
+        name: { type: string, example: "Szkoła Podstawowa w Kruszynie" }
+        voivodeship: { type: string, example: "łódzkie" }
+        region: { type: string, example: "wieruszowski" }
+        city: { type: string, example: "Bolesławiec" }
+        street: { type: string, nullable: true }
+        postal_code: { type: string, nullable: true }
+        school_url: { type: string, format: uri, nullable: true }
+        pc_url: { type: string, format: uri, nullable: true, description: "Parent Council URL" }
+        pc_email: { type: string, format: email, nullable: true, description: "Parent Council email" }
+        phone: { type: string, nullable: true }
+        facebook_url: { type: string, format: uri, nullable: true }
+        insurance_url: { type: string, format: uri, nullable: true }
+        school_type: { type: string, nullable: true }
+        data_source: { type: string, example: "import" }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time, nullable: true }
-        provenance:
-          type: object
-          properties:
-            contact:
-              $ref: "#/components/schemas/ContactProvenance"
-          description: Per-field provenance for key contact attributes
 
     Address:
       type: object
