@@ -5,11 +5,19 @@ entities:
     fields:
       - { name: id, type: uuid, required: true }
       - { name: name, type: string, required: true }
-      - { name: voivodeship, type: string, required: false }
-      - { name: municipality, type: string, required: false }
-      - { name: locality, type: string, required: false }
+      - { name: voivodeship, type: string, required: true }
+      - { name: region, type: string, required: true, description: "Region within voivodeship (powiat/gmina)" }
+      - { name: city, type: string, required: true, description: "City or locality" }
       - { name: street, type: string, required: false }
       - { name: postal_code, type: string, required: false }
+      - { name: school_url, type: uri, required: false, description: "School website URL" }
+      - { name: pc_url, type: uri, required: false, description: "Parent Council URL" }
+      - { name: pc_email, type: email, required: false, description: "Parent Council email" }
+      - { name: phone, type: string, required: false, description: "Primary phone number" }
+      - { name: facebook_url, type: uri, required: false, description: "Facebook page URL" }
+      - { name: insurance_url, type: uri, required: false, description: "Insurance information URL" }
+      - { name: school_type, type: string, required: false, description: "Type of school (Primary, Secondary, etc.)" }
+      - { name: data_source, type: string, required: true, default: import, description: "Source of the data (import/manual/external)" }
       - { name: created_at, type: timestamp, required: true }
       - { name: updated_at, type: timestamp, required: false }
 
@@ -56,23 +64,20 @@ entities:
 
 indexes:
   - table: School
-    columns: [voivodeship, municipality, locality]
+    columns: [voivodeship, region, city]
     type: btree
   - table: School
     columns: [name]
     type: gin_trgm
-  - table: SchoolContact
-    columns: [lower(secretariat_email)]
+  - table: School
+    columns: [school_type, voivodeship]
     type: btree
-  - table: SchoolContact
-    columns: [lower(parents_council_email)]
+  - table: School
+    columns: [lower(pc_email)]
     type: btree
-  - table: SchoolContact
-    columns: [emails]
-    type: gin
-  - table: SchoolContact
-    columns: [secretariat_email_meta]
-    type: gin_jsonb
+  - table: School
+    columns: [phone]
+    type: btree
   - table: ChangeRecord
     columns: [school_id, timestamp]
     type: btree
@@ -87,17 +92,19 @@ validation:
   - region_values_canonical_sets: true
 
 examples:
-  school_minimal:
+  school_example:
     id: "00000000-0000-0000-0000-000000000000"
-    name: "Primary School No. 5"
-    voivodeship: "Mazowieckie"
-    municipality: "Warszawa"
-    locality: "Warszawa"
-    created_at: "2025-08-21T09:00:00Z"
-
-  school_contact_current:
-    school_id: "00000000-0000-0000-0000-000000000000"
-    secretariat_email: "sekretariat@school.edu"
+    name: "Szkoła Podstawowa w Kruszynie"
+    voivodeship: "łódzkie"
+    region: "wieruszowski"
+    city: "Bolesławiec"
+    school_url: "http://www.szkolawkruszynie.edupage.org"
+    pc_url: "https://szkolawkruszynie.edupage.org/a/rada-rodzicow"
+    pc_email: "rada.rodzicow.kruszyn@gmail.com"
+    insurance_url: "https://szkolawkruszynie.edupage.org/text/?eqa=dGV4dD10ZXh0L3RleHQ3JnN1YnBhZ2U9MQ%3D%3D"
+    school_type: "Primary School"
+    data_source: "import"
+    created_at: "2025-08-25T09:00:00Z"
     secretariat_email_source: "external"
     secretariat_email_meta:
       url: "https://school.edu/contact"
