@@ -1,7 +1,10 @@
 # Data Model (Option B — normalized contact with per-field provenance)
+# Iteration 1: Use School entity with basic contact fields (pc_email, secretariat_email, phone, school_url)
+# Iteration 2: Add SchoolContact entity with per-field provenance and ChangeRecord for audit trail
 
 entities:
   - name: School
+    description: Main entity for Iteration 1 with embedded contact fields
     fields:
       - { name: id, type: uuid, required: true }
       - { name: name, type: string, required: true }
@@ -13,16 +16,18 @@ entities:
       - { name: school_url, type: uri, required: false, description: "School website URL" }
       - { name: pc_url, type: uri, required: false, description: "Parent Council URL" }
       - { name: pc_email, type: email, required: false, description: "Parent Council email" }
+      - { name: secretariat_email, type: email, required: false, description: "School secretariat email" }
       - { name: phone, type: string, required: false, description: "Primary phone number" }
       - { name: facebook_url, type: uri, required: false, description: "Facebook page URL" }
       - { name: insurance_url, type: uri, required: false, description: "Insurance information URL" }
       - { name: school_type, type: string, required: false, description: "Type of school (Primary, Secondary, etc.)" }
       - { name: data_source, type: string, required: true, default: import, description: "Source of the data (import/manual/external)" }
+      - { name: validation_flags, type: json, required: false, description: "Store validation status for fields (e.g., invalid emails, URLs)" }
       - { name: created_at, type: timestamp, required: true }
       - { name: updated_at, type: timestamp, required: false }
 
   - name: SchoolContact
-    description: Current contact info per school with per-field provenance
+    description: "Iteration 2: Contact info per school with per-field provenance and metadata"
     fields:
       - { name: school_id, type: uuid, required: true, ref: School.id }
       - { name: secretariat_email, type: email, required: false }
@@ -45,10 +50,26 @@ entities:
       - { name: website_meta, type: json, required: false }
       - { name: website_updated_at, type: timestamp, required: false }
 
-      - { name: emails, type: email[], required: false, description: "Optional supplemental list; derived or manually curated" }
+      - { name: emails, type: "email[]", required: false, description: "Optional supplemental list; derived or manually curated" }
+
+  - name: SchoolEmailContact
+    description: "Table for storing all detected emails/contacts for a school with context and scoring"
+    fields:
+      - { name: id, type: uuid, required: true }
+      - { name: school_id, type: uuid, required: true, ref: School.id }
+      - { name: email, type: string, required: true, description: "Detected email address (stored as string to handle invalid emails)" }
+      - { name: context, type: string, required: true, description: "Where/how the email was found (website_scrape, manual_entry, import_file, social_media, etc.)" }
+      - { name: context_details, type: string, required: false, description: "Additional context metadata stored as TEXT (JSON format)" }
+      - { name: score, type: decimal, required: false, description: "Confidence/relevance score (-100.0 to 100.0; 0 for valid imported emails, negative for invalid, top emails preserve Excel scores)" }
+      - { name: contact_type, type: enum(secretariat,parent_council,general,unknown), required: false, description: "Inferred or classified contact type" }
+      - { name: status, type: enum(active,inactive,bounced,invalid), required: false, default: active, description: "Email status" }
+      - { name: verified_at, type: timestamp, required: false, description: "When the email was last verified as working" }
+      - { name: source, type: enum(import,manual,external,scraper), required: true, default: import }
+      - { name: created_at, type: timestamp, required: true }
+      - { name: updated_at, type: timestamp, required: false }
 
   - name: ChangeRecord
-    description: Append-only audit trail for field-level changes
+    description: "Iteration 2: Append-only audit trail for field-level changes"
     fields:
       - { name: id, type: uuid, required: true }
       - { name: school_id, type: uuid, required: true, ref: School.id }
@@ -76,7 +97,25 @@ indexes:
     columns: [lower(pc_email)]
     type: btree
   - table: School
+    columns: [lower(secretariat_email)]
+    type: btree
+  - table: School
     columns: [phone]
+    type: btree
+  - table: SchoolEmailContact
+    columns: [school_id]
+    type: btree
+  - table: SchoolEmailContact
+    columns: [email]
+    type: btree
+  - table: SchoolEmailContact
+    columns: [school_id, contact_type]
+    type: btree
+  - table: SchoolEmailContact
+    columns: [score]
+    type: btree
+  - table: SchoolEmailContact
+    columns: [context]
     type: btree
   - table: ChangeRecord
     columns: [school_id, timestamp]
@@ -101,16 +140,25 @@ examples:
     school_url: "http://www.szkolawkruszynie.edupage.org"
     pc_url: "https://szkolawkruszynie.edupage.org/a/rada-rodzicow"
     pc_email: "rada.rodzicow.kruszyn@gmail.com"
+    secretariat_email: "sekretariat@kruszyn.edu.pl"
+    phone: "+48 123 456 789"
+    facebook_url: null
     insurance_url: "https://szkolawkruszynie.edupage.org/text/?eqa=dGV4dD10ZXh0L3RleHQ3JnN1YnBhZ2U9MQ%3D%3D"
     school_type: "Primary School"
     data_source: "import"
     created_at: "2025-08-25T09:00:00Z"
+    updated_at: null
+
+  school_contact_example:
+    school_id: "00000000-0000-0000-0000-000000000000"
+    secretariat_email: "sekretariat@school.edu"
     secretariat_email_source: "external"
     secretariat_email_meta:
       url: "https://school.edu/contact"
       phrase: "sekretariat"
       scraped_at: "2025-08-21T07:35:00Z"
-      confidence: 0.92
+      confidence: 92
+      original_score: 92
     secretariat_email_updated_at: "2025-08-21T07:36:12Z"
     parents_council_email: "parents.council@school.edu"
     parents_council_email_source: "manual"
@@ -121,6 +169,24 @@ examples:
     website: "https://school.edu"
     emails:
       - "sekretariat@school.edu"
+
+  school_email_contact_example:
+    id: "22222222-2222-2222-2222-222222222222"
+    school_id: "00000000-0000-0000-0000-000000000000"
+    email: "rada.rodzicow@school.edu"
+    context: "website_scrape"
+    context_details:
+      url: "https://school.edu/kontakt"
+      page_title: "Kontakt - Szkoła Podstawowa"
+      surrounding_text: "Rada Rodziców: rada.rodzicow@school.edu"
+      xpath: "/html/body/div[2]/div/p[3]"
+    score: 85
+    contact_type: "parent_council"
+    status: "active"
+    verified_at: null
+    source: "scraper"
+    created_at: "2025-08-28T10:00:00Z"
+    updated_at: null
 
   change_record_example:
     id: "11111111-1111-1111-1111-111111111111"
@@ -133,7 +199,8 @@ examples:
       url: "https://school.edu/contact"
       phrase: "sekretariat"
       scraped_at: "2025-08-21T07:35:00Z"
-      confidence: 0.92
+      confidence: 92
+      original_score: 92
     client_id: "scraper-mailfinder"
     actor_id: null
     timestamp: "2025-08-21T07:36:12Z"

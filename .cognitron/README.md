@@ -1,4 +1,4 @@
-# .cogitron — Specification and Context Directory
+# .cognitron — Specification and Context Directory
 
 This directory contains the **core specification and context files* used to guide
 development with the help of AI models. Each file plays a specific role in making

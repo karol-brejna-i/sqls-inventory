@@ -1,0 +1,776 @@
+openapi: 3.0.3
+info:
+  title: School Directory API
+  version: 0.3.0
+  description: |
+    Read-first API for browsing school data. Iteration 2 adds limited write for contact info
+    with validation and audit history. This version reflects **Option B** (normalized contact
+    fields with per-field provenance and flexible metadata).
+servers:
+  - url: https://api.schools-directory.local
+    description: Local development server
+  - url: https://api.schools-directory.example
+    description: Production (to be configured)
+
+tags:
+  - name: Schools
+    description: Browse and retrieve school records
+  - name: Email Contacts
+    description: Manage email contact records for schools
+  - name: Contact (Future Write)
+    description: Limited update of contact info with validation and audit (Iteration 2)
+
+paths:
+  /schools:
+    get:
+      tags: [Schools]
+      summary: List schools with filtering, search, and sorting
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 200 }
+          description: Full-text search across name, address and emails (case-insensitive)
+        - in: query
+          name: voivodeship
+          schema: { type: string }
+          description: Filter by voivodeship name or code
+        - in: query
+          name: region
+          schema: { type: string }
+          description: Filter by region within voivodeship
+        - in: query
+          name: city
+          schema: { type: string }
+          description: Filter by city name
+        - in: query
+          name: has_email
+          schema: { type: boolean }
+          description: Only records that have at least one email
+        - in: query
+          name: has_phone
+          schema: { type: boolean }
+          description: Only records that have at least one phone
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum:
+              [name, city, region, voivodeship, email_present, phone_present]
+          description: Sort field; default name
+        - in: query
+          name: order
+          schema: { type: string, enum: [asc, desc], default: asc }
+          description: Sort order
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+          description: Page number (1-based) if pagination is used
+        - in: query
+          name: page_size
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+          description: Items per page
+      responses:
+        "200":
+          description: Paged list of schools
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedSchools"
+        "400":
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /schools/{id}:
+    get:
+      tags: [Schools]
+      summary: Get details for a single school
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: School record
+          headers:
+            ETag:
+              description: Version identifier for optimistic concurrency (used with future PATCH)
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/School" }
+        "404":
+          description: School not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /schools/stats/summary:
+    get:
+      tags: [Schools]
+      summary: Get basic statistics about the schools database
+      responses:
+        "200":
+          description: Summary statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_schools:
+                    {
+                      type: integer,
+                      description: "Total number of schools in database",
+                    }
+                  status: { type: string, description: "Status of the service" }
+                  message:
+                    {
+                      type: string,
+                      description: "Human-readable summary message",
+                    }
+
+  /schools/export:
+    get:
+      tags: [Schools]
+      summary: Export filtered schools to Excel or CSV
+      parameters:
+        - in: query
+          name: format
+          required: true
+          schema:
+            type: string
+            enum: [xlsx, csv]
+          description: Export format
+        - in: query
+          name: filename
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+            pattern: "^[a-zA-Z0-9_-]+$"
+          description: Custom filename without extension (auto-generated if not provided)
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 200 }
+          description: Full-text search filter (same as /schools endpoint)
+        - in: query
+          name: voivodeship
+          schema: { type: string }
+          description: Filter by voivodeship
+        - in: query
+          name: region
+          schema: { type: string }
+          description: Filter by region
+        - in: query
+          name: city
+          schema: { type: string }
+          description: Filter by city
+        - in: query
+          name: has_email
+          schema: { type: boolean }
+          description: Filter by email presence
+        - in: query
+          name: has_phone
+          schema: { type: boolean }
+          description: Filter by phone presence
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum:
+              [name, city, region, voivodeship, email_present, phone_present]
+          description: Sort field for export ordering
+        - in: query
+          name: order
+          schema: { type: string, enum: [asc, desc], default: asc }
+          description: Sort order for export
+      responses:
+        "200":
+          description: Export file generated successfully
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+              example: 'attachment; filename="schools_export_2025-08-25_14-30-15.xlsx"'
+            Content-Length:
+              schema: { type: integer }
+              description: File size in bytes
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+              example: "[Binary Excel file content]"
+            text/csv:
+              schema:
+                type: string
+                format: csv
+              example: |
+                id,name,voivodeship,region,city,school_type,pc_email,secretariat_email,phone,school_url
+                550e8400-e29b-41d4-a716-446655440000,Szkoła Podstawowa w Kruszynie,łódzkie,wieruszowski,Bolesławiec,Primary School,rada.rodzicow.kruszyn@gmail.com,sekretariat@kruszyn.edu.pl,,http://www.szkolawkruszynie.edupage.org
+        "400":
+          description: Invalid export parameters
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example:
+                message: "Invalid export format. Supported formats: xlsx, csv"
+                code: "INVALID_FORMAT"
+        "413":
+          description: Export dataset too large
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example:
+                message: "Export limited to 10,000 records. Current filter matches 15,432 records. Please refine your filters."
+                code: "EXPORT_TOO_LARGE"
+        "429":
+          description: Export rate limit exceeded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example:
+                message: "Export rate limit exceeded. Maximum 10 exports per hour."
+                code: "RATE_LIMIT_EXCEEDED"
+        "504":
+          description: Export generation timeout
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example:
+                message: "Export generation timed out. Please try again or reduce the dataset size."
+                code: "EXPORT_TIMEOUT"
+
+  /email-contacts/school/{school_id}:
+    get:
+      tags: ["Email Contacts"]
+      summary: Get all email contacts for a specific school
+      parameters:
+        - in: path
+          name: school_id
+          required: true
+          schema: { type: string }
+          description: School ID
+      responses:
+        "200":
+          description: List of email contacts for the school
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SchoolEmailContact" }
+        "404":
+          description: School not found
+
+  /email-contacts:
+    get:
+      tags: ["Email Contacts"]
+      summary: Search email contacts with filters
+      parameters:
+        - in: query
+          name: school_id
+          schema: { type: string }
+          description: Filter by school ID
+        - in: query
+          name: email
+          schema: { type: string }
+          description: Filter by email address
+        - in: query
+          name: context
+          schema: { type: string }
+          description: Filter by context
+        - in: query
+          name: contact_type
+          schema:
+            {
+              type: string,
+              enum: [secretariat, parent_council, general, unknown],
+            }
+          description: Filter by contact type
+        - in: query
+          name: status
+          schema: { type: string, enum: [active, inactive, bounced, invalid] }
+          description: Filter by email status
+        - in: query
+          name: source
+          schema: { type: string, enum: [import, manual, external, scraper] }
+          description: Filter by source
+        - in: query
+          name: min_score
+          schema: { type: number, minimum: -100, maximum: 100 }
+          description: Minimum confidence score
+        - in: query
+          name: max_score
+          schema: { type: number, minimum: -100, maximum: 100 }
+          description: Maximum confidence score
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+          description: Maximum number of results
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+          description: Number of results to skip
+      responses:
+        "200":
+          description: List of email contacts matching filters
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SchoolEmailContact" }
+    post:
+      tags: ["Email Contacts"]
+      summary: Create a new email contact record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SchoolEmailContactCreate" }
+      responses:
+        "201":
+          description: Email contact created successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SchoolEmailContact" }
+        "400":
+          description: Invalid input data
+
+  /email-contacts/{contact_id}:
+    get:
+      tags: ["Email Contacts"]
+      summary: Get email contact by ID
+      parameters:
+        - in: path
+          name: contact_id
+          required: true
+          schema: { type: string }
+          description: Email contact ID
+      responses:
+        "200":
+          description: Email contact details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SchoolEmailContact" }
+        "404":
+          description: Email contact not found
+    put:
+      tags: ["Email Contacts"]
+      summary: Update an email contact record
+      parameters:
+        - in: path
+          name: contact_id
+          required: true
+          schema: { type: string }
+          description: Email contact ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SchoolEmailContactUpdate" }
+      responses:
+        "200":
+          description: Email contact updated successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SchoolEmailContact" }
+        "404":
+          description: Email contact not found
+        "400":
+          description: Invalid input data
+    delete:
+      tags: ["Email Contacts"]
+      summary: Delete an email contact record
+      parameters:
+        - in: path
+          name: contact_id
+          required: true
+          schema: { type: string }
+          description: Email contact ID
+      responses:
+        "204":
+          description: Email contact deleted successfully
+        "404":
+          description: Email contact not found
+
+  # ---- Future write (Iteration 2) ----
+  /schools/{id}/contact:
+    patch:
+      tags: ["Contact (Future Write)"]
+      summary: "(Future) Update contact info for a school with validation and audit"
+      description: |
+        Allows trusted external modules to update selected contact fields.
+        **Fields:** secretariat_email, parents_council_email, phone, website.
+        For each field you can provide a `value` and arbitrary `meta` (a free-form object that can include url, phrase, scraped_at, confidence, etc.).
+        **Validation** for email/phone formats is enforced. **Audit history** is recorded per field with old/new value, source=external|manual|import,
+        timestamp, and meta snapshot.
+
+        Behavior:
+        - Omitted fields are unchanged.
+        - A field present with `value: null` clears the value and still records audit and meta.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, maxLength: 128 }
+          description: Unique key per logical update to ensure idempotency
+        - in: header
+          name: If-Match
+          required: false
+          schema: { type: string }
+          description: ETag of the current resource version for optimistic concurrency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ContactUpdate" }
+      responses:
+        "200":
+          description: Contact info updated; returns current school state with updated ETag
+          headers:
+            ETag:
+              description: New version identifier
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/School" }
+        "202":
+          description: Update accepted for asynchronous processing (optional future behavior)
+        "400":
+          description: Bad request (malformed input)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Authentication required or invalid API key
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Insufficient permissions for this operation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: School not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Version conflict (If-Match mismatch)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: Validation errors (invalid email/phone format, etc.)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationError" }
+      x-status: future
+      x-notes:
+        - "Scope limited to contact fields listed above."
+        - "Record audit trail: field, old_value, new_value, timestamp, source, client_id (from API key), actor if available, and meta JSON snapshot."
+        - "Enforce rate limits, e.g., 60 write ops/min per client."
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    PaginatedSchools:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/School" }
+        page:
+          type: integer
+          minimum: 1
+          example: 1
+        page_size:
+          type: integer
+          example: 50
+        total_items:
+          type: integer
+          example: 12345
+        total_pages:
+          type: integer
+          example: 247
+
+    School:
+      type: object
+      required: [id, name, voivodeship, region, city, created_at]
+      properties:
+        id: { type: string, example: "sch_01HXYZ..." }
+        name: { type: string, example: "Szkoła Podstawowa w Kruszynie" }
+        voivodeship: { type: string, example: "łódzkie" }
+        region: { type: string, example: "wieruszowski" }
+        city: { type: string, example: "Bolesławiec" }
+        street: { type: string, nullable: true }
+        postal_code: { type: string, nullable: true }
+        school_url: { type: string, format: uri, nullable: true }
+        pc_url:
+          {
+            type: string,
+            format: uri,
+            nullable: true,
+            description: "Parent Council URL",
+          }
+        pc_email:
+          {
+            type: string,
+            format: email,
+            nullable: true,
+            description: "Parent Council email",
+          }
+        secretariat_email:
+          {
+            type: string,
+            format: email,
+            nullable: true,
+            description: "School secretariat email",
+          }
+        phone: { type: string, nullable: true }
+        facebook_url: { type: string, format: uri, nullable: true }
+        insurance_url: { type: string, format: uri, nullable: true }
+        school_type: { type: string, nullable: true }
+        data_source: { type: string, example: "import" }
+        validation_flags:
+          {
+            type: object,
+            nullable: true,
+            description: "Validation status for fields (e.g., invalid emails, URLs)",
+          }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time, nullable: true }
+
+    Address:
+      type: object
+      properties:
+        street: { type: string, nullable: true }
+        postal_code: { type: string, nullable: true }
+        locality: { type: string, description: "Locality/Town", nullable: true }
+        municipality:
+          { type: string, description: "Municipality (gmina)", nullable: true }
+        voivodeship: { type: string, nullable: true }
+
+    ContactInfo:
+      type: object
+      properties:
+        secretariat_email:
+          type: string
+          format: email
+          nullable: true
+        parents_council_email:
+          type: string
+          format: email
+          nullable: true
+        emails:
+          type: array
+          description: Optional derived or supplemental addresses
+          items: { type: string, format: email }
+        phone:
+          type: string
+          nullable: true
+        website:
+          type: string
+          format: uri
+          nullable: true
+
+    # Per-field provenance shapes
+    FieldProvenance:
+      type: object
+      properties:
+        source:
+          type: string
+          enum: [import, manual, external]
+        updated_at:
+          type: string
+          format: date-time
+        meta:
+          type: object
+          additionalProperties: true
+          description: Arbitrary metadata (e.g., url, phrase, scraped_at, confidence)
+        actor_id:
+          type: string
+          nullable: true
+        client_id:
+          type: string
+          nullable: true
+
+    ContactProvenance:
+      type: object
+      properties:
+        secretariat_email:
+          $ref: "#/components/schemas/FieldProvenance"
+        parents_council_email:
+          $ref: "#/components/schemas/FieldProvenance"
+        phone:
+          $ref: "#/components/schemas/FieldProvenance"
+        website:
+          $ref: "#/components/schemas/FieldProvenance"
+
+    # PATCH request with { field: { value, meta } } structure
+    ContactUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        secretariat_email:
+          $ref: "#/components/schemas/UpdatableField"
+        pc_email:
+          $ref: "#/components/schemas/UpdatableField"
+        phone:
+          $ref: "#/components/schemas/UpdatableField"
+        school_url:
+          $ref: "#/components/schemas/UpdatableField"
+      description: Allowed fields for contact updates by external or manual modules
+
+    UpdatableField:
+      type: object
+      additionalProperties: false
+      properties:
+        value:
+          nullable: true
+        meta:
+          type: object
+          additionalProperties: true
+          description: Free-form metadata captured in provenance and history
+
+    Region:
+      type: object
+      required: [voivodeship]
+      properties:
+        voivodeship: { type: string, example: "Mazowieckie" }
+        municipality: { type: string, nullable: true }
+        locality: { type: string, nullable: true }
+
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+        code: { type: string, nullable: true }
+
+    ValidationError:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          properties:
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  issue: { type: string }
+
+    SchoolEmailContact:
+      type: object
+      required: [id, school_id, email, context, source, created_at]
+      properties:
+        id: { type: string, description: "Email contact ID" }
+        school_id: { type: string, description: "Associated school ID" }
+        email: { type: string, description: "Email address (may be invalid)" }
+        context: { type: string, description: "How/where the email was found" }
+        context_details:
+          {
+            type: string,
+            nullable: true,
+            description: "Additional context metadata (JSON string)",
+          }
+        score:
+          {
+            type: number,
+            minimum: -100,
+            maximum: 100,
+            nullable: true,
+            description: "Confidence score (-100 to 100; 0 for valid imported emails, negative for invalid, top emails preserve declared scores)",
+          }
+        contact_type:
+          {
+            type: string,
+            enum: [secretariat, parent_council, general, unknown],
+            nullable: true,
+          }
+        status:
+          {
+            type: string,
+            enum: [active, inactive, bounced, invalid],
+            default: active,
+          }
+        verified_at: { type: string, format: date-time, nullable: true }
+        source: { type: string, enum: [import, manual, external, scraper] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time, nullable: true }
+
+    SchoolEmailContactCreate:
+      type: object
+      required: [id, school_id, email, context, source]
+      properties:
+        id: { type: string, description: "Email contact ID" }
+        school_id: { type: string, description: "Associated school ID" }
+        email: { type: string, description: "Email address" }
+        context: { type: string, description: "How/where the email was found" }
+        context_details:
+          {
+            type: string,
+            nullable: true,
+            description: "Additional context metadata",
+          }
+        score: { type: number, minimum: -100, maximum: 100, nullable: true }
+        contact_type:
+          {
+            type: string,
+            enum: [secretariat, parent_council, general, unknown],
+            nullable: true,
+          }
+        status:
+          {
+            type: string,
+            enum: [active, inactive, bounced, invalid],
+            default: active,
+          }
+        verified_at: { type: string, format: date-time, nullable: true }
+        source:
+          {
+            type: string,
+            enum: [import, manual, external, scraper],
+            default: import,
+          }
+
+    SchoolEmailContactUpdate:
+      type: object
+      properties:
+        email: { type: string, nullable: true }
+        context: { type: string, nullable: true }
+        context_details: { type: string, nullable: true }
+        score: { type: number, minimum: -100, maximum: 100, nullable: true }
+        contact_type:
+          {
+            type: string,
+            enum: [secretariat, parent_council, general, unknown],
+            nullable: true,
+          }
+        status:
+          {
+            type: string,
+            enum: [active, inactive, bounced, invalid],
+            nullable: true,
+          }
+        verified_at: { type: string, format: date-time, nullable: true }
+        source:
+          {
+            type: string,
+            enum: [import, manual, external, scraper],
+            nullable: true,
+          }

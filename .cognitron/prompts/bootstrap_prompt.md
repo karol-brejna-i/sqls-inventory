@@ -13,7 +13,7 @@ I want to build a **web app** for browsing and managing school information.
 - Future: authentication (login/password, roles Reader/Editor/Admin), API keys or OAuth for external modules.
 
 ## Deliverables
-Create a complete **AI-ready project skeleton** with the following files (in `.cogitron/` directory):
+Create a complete **AI-ready project skeleton** with the following files (in `.cognitron/` directory):
 - `vision.md` — project vision, goals, personas, scope (iteration 1/2/future).
 - `prd.md` — product requirements with epics, features, acceptance criteria (Gherkin examples).
 - `system-requirements.md` — system and non-functional requirements, tech stack, API standards, validation, security, ops.

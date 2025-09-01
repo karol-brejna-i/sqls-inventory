@@ -94,7 +94,7 @@ ALTER TABLE schools
 - **Future**: Add relationships: SCHOOLS many-to-one ADMINISTRATIVE_DIVISIONS (for each geographic level)
 
 ## References
-- Data model specification: `.cogitron/data-model.yaml`
+- Data model specification: `.cognitron/data-model.yaml`
 - Excel input structure: `__wrzutnia.priv/input_data.xlsx`
-- System requirements: `.cogitron/system-requirements.md`
+- System requirements: `.cognitron/system-requirements.md`
 - Architecture documentation: `docs/architecture.md`

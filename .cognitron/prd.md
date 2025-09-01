@@ -1,6 +1,12 @@
 # Product Requirements (PRD)
+- **F8: Change history (audit) for key attributes**
+  - For each changed field store: field name, old value, new value, timestamp, source (manual/import), and actor (if authenticated).
+  - Display per‑record history in UI.
+- **F9: Provenance badge in list/detail**
+  - Indicate if a field was edited manually or comes from import (latest source).
 
-## 1. Epics and features
+### E3 — External consumption (Read API) (Iteration 1 minimal, extended later)
+- **F10: Read‑only access for other modules**pics and features
 
 ### E1 — School data browsing (Iteration 1, Priority)
 - **F1: List view of schools**
@@ -17,24 +23,29 @@
 - **F5: Detail view (read‑only)**
   - Open a single record to see all stored fields.
   - Show field provenance if available (source and last updated).
+- **F6: Data export**
+  - Export filtered/searched results to Excel (.xlsx) or CSV (.csv) format.
+  - Include all visible fields with proper formatting and UTF-8 encoding.
+  - Limit exports to 10,000 records maximum for performance.
+  - Auto-generate timestamped filenames or allow custom naming.
 
 ### E2 — Manual editing with change history (Iteration 2)
-- **F6: Edit selected fields by hand**
+- **F7: Edit selected fields by hand**
   - Editable fields: contact info (pc_email, phone), website, school_url, facebook_url, address corrections.
   - Validation rules for email, phone formats.
-- **F7: Change history (audit) for key attributes**
+- **F8: Change history (audit) for key attributes**
   - For each changed field store: field name, old value, new value, timestamp, source (manual/import), and actor (if authenticated).
   - Display per‑record history in UI.
 - **F8: Provenance badge in list/detail**
   - Indicate if a field was edited manually or comes from import (latest source).
 
 ### E3 — External consumption (Read API) (Iteration 1 minimal, extended later)
-- **F9: Read‑only access for other modules**
+- **F10: Read‑only access for other modules**
   - Provide a stable way to read filtered/sorted/search results (exact interface defined in System Requirements/API spec).
   - Out of scope: sending emails/mailing campaigns.
 
 ### E4 — Authentication and authorization (Future)
-- **F10: Login/password**
+- **F11: Login/password**
   - Protect editing features; readers may remain public or require login depending on policy (to be decided later).
   - Roles: Reader, Editor, Admin (draft).
 
@@ -76,7 +87,31 @@ Feature: View school details
     Then I can see Name, Address, Locality, Municipality, Voivodeship, Phone, Email(s)
 ```
 
-### F6/F7: Edit with change history (iteration 2)
+### F6: Data export
+```
+Feature: Export school data
+  Scenario: Export filtered schools to Excel
+    Given I have applied filters for "łódzkie" voivodeship
+    And the filtered results contain 150 schools
+    When I click "Export to Excel"
+    Then I receive an Excel file download
+    And the filename contains the current date and time
+    And the file contains 150 school records with all fields
+    And the file uses UTF-8 encoding
+
+  Scenario: Export limit exceeded
+    Given my current filters match 15,000 schools
+    When I attempt to export to CSV
+    Then I see an error message "Export limited to 10,000 records"
+    And I am suggested to refine my filters
+
+  Scenario: Export with custom filename
+    Given I have filtered schools by "Warszawa" city
+    When I export to CSV with filename "warszawa_schools"
+    Then I receive a file named "warszawa_schools_2025-08-25_14-30-15.csv"
+```
+
+### F7/F8: Edit with change history (iteration 2)
 ```
 Feature: Edit contact info with audit
   Scenario: Update email and record provenance
@@ -89,9 +124,10 @@ Feature: Edit contact info with audit
 ```
 
 ## 3. Minimum Lovable Product (Iteration 1)
-- List view with paging, hierarchical regional filters (Voivodeship → Municipality → Locality/Town).
+- List view with paging, hierarchical regional filters (Voivodeship → Region → City).
 - Sort by Name; search across Name/address/email.
 - Detail view (read-only).
+- Export functionality (Excel/CSV) with filtered results.
 - (Optional) Indication of data freshness if source timestamps exist.
 
 ## 4. Edge cases and validation

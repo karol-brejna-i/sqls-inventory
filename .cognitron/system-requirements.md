@@ -19,7 +19,7 @@
 - **DB:** PostgreSQL 16.
 - **Search:** Postgres GIN indexes with trigram or full‑text for name/address/email (pg_trgm + tsvector).
 - **Frontend:** React + TypeScript + Vite (or Next.js if SSR desired).
-- **API schema:** OpenAPI 3.0 (`.cogitron/api.yaml`) as source of truth; generate server/client stubs.
+- **API schema:** OpenAPI 3.0 (`.cognitron/api.yaml`) as source of truth; generate server/client stubs.
 - **Containerization:** Docker, multi‑stage build; image < 200MB.
 - **Infra:** Any container runtime; one Postgres instance; optionally Redis for caching (later).
 - **Time & locale:** All timestamps in UTC (ISO 8601). UI localized to English initially.
@@ -95,7 +95,85 @@
 - **Empty states & errors:** Clear messages; retry affordances.
 - **Performance:** Bundle < 250KB gz (iteration 1 target).
 
-## 10. Open questions / decisions to confirm
+## 10. Export Requirements
+
+### Export Formats and Scope
+- **Supported formats:** Excel (.xlsx), CSV (.csv)
+- **Export scope:** Current filtered/searched result set (not full database)
+- **Maximum export size:** 10,000 records per export (prevent performance issues)
+- **File size limits:** 50MB max for Excel, 20MB max for CSV
+
+### Export Data Fields
+- **Core fields:** id, name, voivodeship, region, city, street, postal_code, school_type
+- **Contact fields:** pc_email, secretariat_email, phone, school_url, facebook_url
+- **Metadata fields:** data_source, created_at, updated_at
+- **Optional fields:** pc_url, insurance_url (if present)
+
+### Export Behavior
+- **Filename format:** `schools_export_YYYY-MM-DD_HH-mm-ss.{xlsx|csv}`
+- **Empty fields:** Display as empty cells (not "null" or "—")
+- **Date format:** ISO 8601 format (YYYY-MM-DDTHH:mm:ss.sssZ)
+- **Text encoding:** UTF-8 for all exports
+- **Excel specifics:** First row contains column headers, auto-fit column widths
+
+### Export API Endpoint
+```yaml
+/schools/export:
+  get:
+    summary: Export filtered schools to Excel or CSV
+    parameters:
+      - name: format
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [xlsx, csv]
+      - name: filename
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 100
+        description: Custom filename (without extension)
+      # Same filtering parameters as /schools endpoint
+      - name: voivodeship
+        in: query
+        schema: { type: string }
+      - name: region
+        in: query
+        schema: { type: string }
+      # ... other filter parameters
+    responses:
+      "200":
+        description: Export file
+        headers:
+          Content-Disposition:
+            schema: { type: string }
+            example: 'attachment; filename="schools_export_2025-08-25_14-30-15.xlsx"'
+        content:
+          application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+            schema: { type: string, format: binary }
+          text/csv:
+            schema: { type: string }
+      "400":
+        description: Invalid export parameters
+      "413":
+        description: Export too large (>10,000 records)
+```
+
+### Performance Requirements
+- **Generation time:** <30 seconds for 10,000 records
+- **Memory usage:** <200MB during export generation
+- **Concurrent exports:** Max 3 simultaneous exports per user
+- **Rate limiting:** Max 10 exports per hour per user
+
+### Error Handling
+- **No results:** Generate empty file with headers only
+- **Timeout:** Return 504 with retry suggestion
+- **Large dataset:** Return 413 with filter suggestion
+- **Invalid format:** Return 400 with supported formats list
+
+## 11. Open questions / decisions to confirm
 - Canonical identifiers for municipalities/localities (official registry source?).
 - Public vs authenticated READs in iteration 1.
 - Export features (CSV/JSON) — in scope for iteration 1 or deferred?

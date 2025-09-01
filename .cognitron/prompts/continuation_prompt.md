@@ -1,5 +1,5 @@
 You are my assistant for refining an AI-ready project specification.  
-I already have the `.cogitron/` directory with spec files (vision.md, prd.md, system-requirements.md, api.yaml, data-model.yaml, etc.).
+I already have the `.cognitron/` directory with spec files (vision.md, prd.md, system-requirements.md, api.yaml, data-model.yaml, etc.).
 
 Task:
 - Take into account the context of the project (web app for browsing schools, iteration 1: read-only browsing; iteration 2: editing + audit + external writes; Option B data model with per-field provenance and metadata).

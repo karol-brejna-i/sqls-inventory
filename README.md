@@ -20,7 +20,7 @@ It is also an **experiment in specification-driven development with AI** — usi
 
 ## 📂 Repository Structure
 ```
-.cogitron/       # Specifications & AI context (vision, PRD, data model, API, system reqs)
+.cognitron/       # Specifications & AI context (vision, PRD, data model, API, system reqs)
   vision.md
   prd.md
   system-requirements.md
@@ -28,7 +28,7 @@ It is also an **experiment in specification-driven development with AI** — usi
   data-model.yaml
   glossary.md
   user-stories.md
-  README.md       # Explains .cogitron structure
+  README.md       # Explains .cognitron structure
   prompts/        # Bootstrap & continuation prompts for AI
   adr/            # Architecture Decision Records
 docs/            # Architecture docs, diagrams, explanations
@@ -40,12 +40,12 @@ tests/           # Acceptance tests in Gherkin
 ## 🧩 How to Use
 
 - **For humans:**  
-  Read `.cogitron/` files to understand the scope, requirements, and design.  
+  Read `.cognitron/` files to understand the scope, requirements, and design.  
   Extend docs, add ADRs, evolve specs as the project grows.  
 
 - **For AI models:**  
-  Provide the [bootstrap prompt](.cogitron/prompts/bootstrap_prompt.md) to regenerate the project structure from scratch.  
-  Use the [continuation prompt](.cogitron/prompts/continuation_prompt.md) to refine individual files.  
+  Provide the [bootstrap prompt](.cognitron/prompts/bootstrap_prompt.md) to regenerate the project structure from scratch.  
+  Use the [continuation prompt](.cognitron/prompts/continuation_prompt.md) to refine individual files.  
 
 ---
 
